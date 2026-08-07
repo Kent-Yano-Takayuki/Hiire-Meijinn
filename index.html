@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>調理時間計算ツール(熱伝導シミュレーション)</title>
+ <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#F97316">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="火入れ名人"> 
 <style>
 :root{
   color-scheme: light;
@@ -972,6 +977,11 @@ $("explainBody").innerHTML = `
 日本の基準: <a href="https://www.mhlw.go.jp/file/06-Seisakujouhou-11130500-Shokuhinanzenbu/0000139151.pdf" target="_blank" rel="noopener">厚生労働省 大量調理施設衛生管理マニュアル</a>
 </p>
 `;
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./service-worker.js');
+}
 </script>
 </body>
 </html>

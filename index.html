@@ -318,6 +318,7 @@ body.safety-mode-page .calc-btn{
         <div><label for="initState">調理前のお肉の状態</label><select id="initState"><option value="fridge">冷蔵庫から出したばかり</option><option value="rested">室温にしばらく置いた（30分程度）</option><option value="equilibrated">室温と同じになっている</option></select></div>
         <div><label for="roomTemp">室温の目安（℃）</label><input type="number" id="roomTemp" value="24" step="1"></div>
         <div class="row-span2"><label for="tinit">食材の初期温度（℃）</label><input type="number" id="tinit" value="4" step="0.1"><div class="field-note">上の状態から自動入力。実測温度が分かれば直接上書きできます。</div></div>
+        <div class="measure-tip">⚠ この設定温度は、調理器具が<b>すでに予熱を終えて設定温度に達している状態</b>を前提に計算しています。予熱が終わる前に食材を入れると、実際の加熱はこの計算結果より遅くなります。タイマーは予熱完了を確認してから始めてください。</div>
       </div>
     </section>
 
@@ -332,6 +333,7 @@ body.safety-mode-page .calc-btn{
         </div>
         <div class="safety-target-value"><span class="v" id="safetyAutoTemp">―</span><span class="u">℃</span></div>
         <div class="safety-target-note" id="safetyAutoNote">現在の食材・器具・設定温度から、安全基準を満たす時点の中心温度を自動計算します。</div>
+        <div class="safety-target-note">⚠ この計算は調理器具が最初から設定温度に達していることが前提です。予熱が不十分なまま調理を始めた場合、実際の安全基準達成はここに表示される時間より遅くなります。予熱完了を確認してからタイマーを始めてください。</div>
       </div>
 
       <details class="optional-box"><summary>いつもの道具に合わせる（任意）</summary><div class="grid" style="margin-top:12px"><div><label for="measT">経過時間（分）</label><input type="number" id="measT" placeholder="空欄でOK" step="0.1"></div><div><label for="measTemp">そのときの中心温度（℃）</label><input type="number" id="measTemp" placeholder="空欄でOK" step="0.1"></div></div><div class="field-note">以前、同じ調理器具・同じ条件で測った記録があれば入力してください。計算をあなたの調理環境に合わせて補正します。</div></details>
@@ -1057,6 +1059,7 @@ $("explainBody").innerHTML = `
 <li>密度・比熱・熱伝導率は代表的な文献値の概算です(脂肪分・部位で変動)。</li>
 <li>鴨は鶏肉の、イノシシは牛肉・豚肉の安全基準テーブルを援用しています。</li>
 <li>調理器具は設定温度が一定に保たれる前提です。実際の家庭用機器の温度サイクリングは考慮していません。</li>
+<li><b>調理器具はすでに予熱を終え、設定温度に達している状態から食材を入れる前提です。</b>予熱の立ち上がり過程(庫内温度が室温から設定温度まで上がっていく時間)は計算に含まれていません。予熱が終わる前に食材を入れると、実際の加熱はこの計算より遅くなります。特に「安全性優先モード」では、実際の安全基準達成がここに表示される時間より遅れる方向にズレるため、必ず予熱完了を確認してからタイマーを始めてください。</li>
 <li>調理終了後の余熱(取り出した後の中心温度の上昇)は計算に含まれていません。</li>
 <li>形状が均一でない食材(部位によって厚みが大きく異なる等)への対応は今回見送っています。</li>
 <li>家庭用途における実用精度としておおよそ80%程度を目安とした設計です。医療・営業用の厳格な衛生管理には使用しないでください。</li>

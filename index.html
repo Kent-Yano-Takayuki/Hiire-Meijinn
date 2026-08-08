@@ -526,6 +526,54 @@ function geometry(mode, rho, weightG, dimMm, widthMm){
       derived: { kind:"length", label:"計算上の奥行き", valueMm: depth*1000, note:"重さ・厚さ・幅から自動算出" } };
   }
 }
+// ---- 相補誤差関数 erfc(x) の数値近似(Numerical Recipes、絶対誤差 <1.2e-7) ----
+function erfc(x){
+  const z = Math.abs(x);
+  const t = 1/(1+0.5*z);
+  const ans = t*Math.exp(-z*z-1.26551223+t*(1.00002368+t*(0.37409196+t*(0.09678418+
+    t*(-0.18628806+t*(0.27886807+t*(-1.13520398+t*(1.48851587+
+    t*(-0.82215223+t*0.17087277)))))))));
+  return x>=0 ? ans : 2-ans;
+}
+
+// ---- 短時間領域専用: 半無限固体・対流境界条件の厳密解 ----
+// 一項近似(A1*exp(-λ1²Fo))は短時間(小さいFo)では精度が落ちることが知られており、
+// さらに複数次元をかけ合わせる(Newman則)形状ではA1同士の積が1を超えるため、
+// t=0付近でθ*が数学上100%を超えてしまい、それを1にクランプすることで
+// 「加熱開始直後、数分間まったく温度が変化しない」という不自然な平坦区間が
+// 生じていた(実測検証を通じて判明)。短時間の間だけ、この厳密解に
+// 置き換えることで、t=0から滑らかに温度が変化するようにする。
+function shortTimeTheta(Fo, Bi){
+  if (Fo<=0) return 1;
+  const sqrtFo = Math.sqrt(Fo);
+  const a = 1/(2*sqrtFo);
+  const b = Bi*sqrtFo;
+  const term1 = erfc(a);
+  const expo = Bi + Bi*Bi*Fo;
+  const term2 = expo>700 ? 0 : Math.exp(expo)*erfc(a+b);
+  return Math.max(0, Math.min(1, 1-term1+term2));
+}
+
+// ---- 一項近似と短時間厳密解の「切り替え点(Fo_switch)」を二分探索で求める ----
+// 当初は「一項近似が自然に1を下回る点(Fo_unclamp = ln(A1)/λ1²)」を切り替え点にしていたが、
+// その点では短時間厳密解の値が1に一致するとは限らないため、切り替え時に温度が
+// 不連続にジャンプする(=一瞬だけ温度が下がって見える)バグが実測検証で発覚した。
+// そこで、2つの近似式の値そのものが一致する交点(Fo_switch)を求め、そこで切り替える
+// ことで連続性(C0連続)を数学的に保証する。これは漸近接続(matched asymptotics)の
+// 標準的な考え方で、短時間解が正確な領域と一項近似が正確な領域が自然につながる点でもある。
+function findFoSwitch(A1, lam1, Bi){
+  if (A1<=1) return 0; // クランプが不要なケース(理論上ほぼ起きない)
+  const diff = (Fo) => A1*Math.exp(-lam1*lam1*Fo) - shortTimeTheta(Fo, Bi);
+  let lo=0, hi=0.05, dHi=diff(hi), iter=0;
+  while (dHi>0 && iter<80){ hi*=1.5; dHi=diff(hi); iter++; }
+  if (dHi>0) return Math.log(A1)/(lam1*lam1); // フォールバック(通常到達しない)
+  for (let i=0;i<80;i++){
+    const mid=(lo+hi)/2;
+    if (diff(mid)>0) lo=mid; else hi=mid;
+  }
+  return (lo+hi)/2;
+}
+
 function buildCase(meat, mode, weightG, dimMm, widthMm, applianceName, Tapp){
   const props = MEATS[meat];
   const alpha = (props.k/(props.rho*props.cp))*60;
@@ -535,19 +583,22 @@ function buildCase(meat, mode, weightG, dimMm, widthMm, applianceName, Tapp){
     const Bi = h*d.L/props.k;
     const table = d.kind==="CYL" ? HEISLER_CYL : (d.kind==="SPHERE" ? HEISLER_SPHERE : HEISLER_SLAB);
     const [lam1,A1] = interpHeisler(table, Bi);
-    return {...d, Bi, lam1, A1};
+    const FoSwitch = findFoSwitch(A1, lam1, Bi);
+    return {...d, Bi, lam1, A1, FoSwitch};
   });
   const PiA1 = dims.reduce((p,d)=>p*d.A1, 1);
   const S = dims.reduce((s,d)=>s + (d.lam1*d.lam1)/(d.L*d.L), 0);
   return { h, alpha, safety:props.safety, dims, PiA1, S, derived: geo.derived };
 }
+
 function thetaTotal(kase, cf, t){
-  let expProduct = 1.0;
+  let product = 1.0;
   for (const d of kase.dims){
     const Fo = cf*kase.alpha*t/(d.L*d.L);
-    expProduct *= Math.exp(-(d.lam1*d.lam1)*Fo);
+    const theta_i = Fo>=d.FoSwitch ? d.A1*Math.exp(-(d.lam1*d.lam1)*Fo) : shortTimeTheta(Fo, d.Bi);
+    product *= theta_i;
   }
-  return Math.max(0, Math.min(1, kase.PiA1*expProduct));
+  return Math.max(0, Math.min(1, product));
 }
 function centerTemp(kase, cf, Tapp, Tinit, t){
   const theta = thetaTotal(kase, cf, t);
@@ -555,26 +606,44 @@ function centerTemp(kase, cf, Tapp, Tinit, t){
   const lo = Math.min(Tapp,Tinit), hi = Math.max(Tapp,Tinit);
   return Math.max(lo, Math.min(hi, raw));
 }
+// cfが大きいほど加熱は速くなる(centerTempはcfについて単調増加)ので、
+// 対数スケールの二分探索で、指定した実測点(measT分後にmeasTemp℃)を
+// ちょうど再現するcfを解く。短時間領域の補正後もこの単調性は保たれる。
 function resolveCF(kase, applianceName, Tapp, Tinit, measT, measTemp){
   const appDefault = APPLIANCES[applianceName].cf;
   if (measT!=null && measT>0 && measTemp!=null && !isNaN(measT) && !isNaN(measTemp)){
-    const ratio = (Tapp-measTemp)/(Tapp-Tinit);
-    const val = ratio/kase.PiA1;
-    if (val<=0) return {cf:appDefault, fromMeasurement:false};
-    const cf = -Math.log(val)/(kase.alpha*measT*kase.S);
+    if (measTemp<=Tinit || measTemp>=Tapp) return {cf:appDefault, fromMeasurement:false};
+    let lo=0.001, hi=1000;
+    const Tlo = centerTemp(kase, lo, Tapp, Tinit, measT);
+    const Thi = centerTemp(kase, hi, Tapp, Tinit, measT);
+    if (measTemp<=Tlo || measTemp>=Thi) return {cf:appDefault, fromMeasurement:false};
+    for (let i=0;i<100;i++){
+      const mid = Math.sqrt(lo*hi);
+      const T = centerTemp(kase, mid, Tapp, Tinit, measT);
+      if (T<measTemp) lo=mid; else hi=mid;
+    }
+    const cf = Math.sqrt(lo*hi);
     if (!isFinite(cf) || cf<=0) return {cf:appDefault, fromMeasurement:false};
     return {cf, fromMeasurement:true};
   }
   return {cf:appDefault, fromMeasurement:false};
 }
+// 中心温度は時間とともに単調にTappへ近づくので、二分探索で正確に解く。
 function timeToTarget(kase, cf, Tapp, Tinit, Ttarget){
   if (Ttarget<=Tinit) return 0;
   if (Ttarget>=Tapp) return null;
-  const ratio = (Tapp-Ttarget)/(Tapp-Tinit);
-  const val = ratio/kase.PiA1;
-  if (val<=0) return null;
-  const Ktotal = cf*kase.alpha*kase.S;
-  const t = -Math.log(val)/Ktotal;
+  let lo = 0, hi = 1;
+  for (let i=0;i<200;i++){
+    if (centerTemp(kase, cf, Tapp, Tinit, hi)>=Ttarget) break;
+    hi *= 2;
+    if (hi>100000) return null;
+  }
+  if (centerTemp(kase, cf, Tapp, Tinit, hi) < Ttarget) return null;
+  for (let i=0;i<100;i++){
+    const mid = (lo+hi)/2;
+    if (centerTemp(kase, cf, Tapp, Tinit, mid) < Ttarget) lo=mid; else hi=mid;
+  }
+  const t = (lo+hi)/2;
   if (!isFinite(t) || t<0) return null;
   return t;
 }

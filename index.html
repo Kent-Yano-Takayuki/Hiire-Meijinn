@@ -67,6 +67,23 @@ select:focus,input:focus,textarea:focus{outline:none;border-color:var(--red);box
 .optional-box{border:1px dashed #cdbdab;border-radius:14px;background:#faf6f0;padding:14px 16px;margin-top:15px}.optional-box summary{cursor:pointer;font-size:.83rem;font-weight:800;color:#5b5149}
 .calc-wrap{padding:4px 0 18px}.calc-btn{width:100%;border:0;border-radius:12px;background:linear-gradient(180deg,#a7382e,#8c281f);color:#fff;padding:15px 20px;font-weight:800;letter-spacing:.08em;font-size:1rem;cursor:pointer;box-shadow:0 9px 20px rgba(133,40,32,.16)}.calc-btn:hover{filter:brightness(.96)}
 .calc-note{text-align:center;font-size:.72rem;color:var(--muted);margin-top:7px}
+#tapp{cursor:pointer;caret-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;background:var(--input)}
+.keypad-overlay{position:fixed;inset:0;z-index:100;display:none}
+.keypad-overlay.open{display:block}
+.keypad-backdrop{position:absolute;inset:0;background:rgba(36,33,31,.45)}
+.keypad-panel{position:absolute;left:0;right:0;bottom:0;background:var(--paper-2);border-radius:22px 22px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -12px 34px rgba(52,38,28,.22);max-width:480px;margin:0 auto;animation:keypadSlideUp .22s ease-out}
+@keyframes keypadSlideUp{from{transform:translateY(24px);opacity:.4}to{transform:translateY(0);opacity:1}}
+.keypad-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.keypad-title{font-weight:800;font-size:.92rem;color:var(--ink)}
+.keypad-clear{border:0;background:none;color:var(--red);font-weight:700;font-size:.8rem;padding:6px 4px;cursor:pointer}
+.keypad-display{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-size:2.6rem;font-weight:700;color:var(--red-deep);text-align:right;padding:8px 6px 0;font-variant-numeric:tabular-nums;min-height:52px}
+.keypad-display .keypad-unit{font-size:1.1rem;color:var(--muted);margin-left:6px;font-family:"Noto Sans JP",sans-serif;font-weight:700}
+.keypad-range-note{text-align:right;font-size:.72rem;color:var(--muted);margin-bottom:12px}
+.keypad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.keypad-key{border:1px solid #e4dbcf;background:#fff;border-radius:14px;padding:16px 0;font-size:1.35rem;font-weight:700;color:var(--ink);cursor:pointer;box-shadow:0 2px 6px rgba(52,38,28,.05)}
+.keypad-key:active{background:#f3ece2}
+.keypad-key-func{color:var(--red);font-size:1.15rem}
+.keypad-done-btn{width:100%;border:0;border-radius:12px;background:linear-gradient(180deg,#a7382e,#8c281f);color:#fff;padding:15px;font-weight:800;font-size:1rem;letter-spacing:.06em;cursor:pointer;box-shadow:0 9px 20px rgba(133,40,32,.16)}
 .result-grid{display:grid;grid-template-columns:minmax(250px,.8fr) minmax(0,1.6fr);gap:14px;align-items:stretch}.result-grid>.card{margin-bottom:0}
 .result-card{background:linear-gradient(150deg,#fffdfa,#fbf5ee)}.result-hero{display:flex;align-items:baseline;gap:10px;margin:8px 0 4px;flex-wrap:wrap}.result-hero .num{font-family:"Yu Mincho",serif;font-size:3rem;font-weight:700;color:var(--red);font-variant-numeric:tabular-nums}.result-hero .unit{font-size:1.1rem;color:var(--muted)}.result-sub{font-size:.82rem;color:var(--muted)}
 .safety-block{border-radius:14px;padding:15px 16px;margin-top:14px;background:#f8f4ee;border:1px solid var(--line)}.safety-block h3{margin:0 0 8px;font-size:.9rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:.72rem;font-weight:800}.badge.good{background:#e4efe5;color:var(--good)}.badge.info{background:#efe8e0;color:var(--red)}.progress-track{height:8px;border-radius:6px;background:#e4ddd5;overflow:hidden;margin:8px 0}.progress-fill{height:100%;border-radius:6px;background:var(--red)}.progress-fill.good{background:var(--good)}.safety-detail{font-size:.82rem;color:#5c554f}.safety-detail b{color:var(--ink)}.note-box{font-size:.76rem;color:#615952;background:#f8f3ec;border-left:3px solid var(--red);padding:9px 11px;border-radius:0 8px 8px 0;margin-top:10px}.errbox{background:#f8e9e6;color:var(--critical);border-radius:10px;padding:10px 14px;font-size:.84rem}
@@ -330,7 +347,7 @@ body.safety-mode-page .calc-btn{
       <div class="section-kicker">STEP 02</div><h2 class="section-title"><span class="ico">🔥</span> 加熱条件</h2>
       <div class="grid three">
         <div><label for="appliance">調理器具</label><select id="appliance"><option value="業務用オーブン">業務用オーブン</option><option value="家庭用電気トースター">家庭用電気トースター</option><option value="魚焼きグリル(IH/ガス)">魚焼きグリル（IH / ガス）</option><option value="家庭用エアフライヤー">家庭用エアフライヤー</option></select></div>
-        <div><label for="tapp">設定温度（℃）</label><input type="text" inputmode="decimal" id="tapp" value="180"><div class="field-note">60〜260℃の範囲</div></div>
+        <div><label for="tapp">設定温度（℃）</label><input type="text" inputmode="none" id="tapp" value="180" readonly><div class="field-note">タップして数字を入力（60〜260℃の範囲）</div></div>
         <div><label for="initState">調理前のお肉の状態</label><select id="initState"><option value="fridge">冷蔵庫から出したばかり</option><option value="rested">室温にしばらく置いた（30分程度）</option><option value="equilibrated">室温と同じになっている</option></select></div>
         <div><label for="roomTemp">室温の目安（℃）</label><input type="text" inputmode="decimal" id="roomTemp" value="24"></div>
         <div class="row-span2"><label for="tinit">食材の初期温度（℃）</label><input type="text" inputmode="decimal" id="tinit" value="4"><div class="field-note">上の状態から自動入力。実測温度が分かれば直接上書きできます。</div></div>
@@ -373,6 +390,33 @@ body.safety-mode-page .calc-btn{
   </main>
 </div>
 <footer class="site-footer"><div class="footer-inner"><div class="footer-brand">🔥 火入れ名人</div><div class="footer-copy">家庭用途の目安として、実用精度おおよそ80%程度を想定して設計しています。医療・営業用の厳格な衛生管理には使用しないでください。</div></div></footer>
+
+<div class="keypad-overlay" id="keypadOverlay" aria-hidden="true">
+  <div class="keypad-backdrop" id="keypadBackdrop"></div>
+  <div class="keypad-panel" role="dialog" aria-modal="true" aria-label="設定温度を入力">
+    <div class="keypad-header">
+      <span class="keypad-title">🔥 設定温度を入力</span>
+      <button type="button" class="keypad-clear" id="keypadClear">クリア</button>
+    </div>
+    <div class="keypad-display"><span id="keypadDisplay">180</span><span class="keypad-unit">℃</span></div>
+    <div class="keypad-range-note">60〜260℃の範囲</div>
+    <div class="keypad-grid">
+      <button type="button" class="keypad-key" data-key="7">7</button>
+      <button type="button" class="keypad-key" data-key="8">8</button>
+      <button type="button" class="keypad-key" data-key="9">9</button>
+      <button type="button" class="keypad-key" data-key="4">4</button>
+      <button type="button" class="keypad-key" data-key="5">5</button>
+      <button type="button" class="keypad-key" data-key="6">6</button>
+      <button type="button" class="keypad-key" data-key="1">1</button>
+      <button type="button" class="keypad-key" data-key="2">2</button>
+      <button type="button" class="keypad-key" data-key="3">3</button>
+      <button type="button" class="keypad-key keypad-key-func" data-key=".">.</button>
+      <button type="button" class="keypad-key" data-key="0">0</button>
+      <button type="button" class="keypad-key keypad-key-func" data-key="back">⌫</button>
+    </div>
+    <button type="button" class="keypad-done-btn" id="keypadDone">✓ 完了</button>
+  </div>
+</div>
 
 <script>
 
@@ -1097,6 +1141,71 @@ updateInitTempFromPreset();
 tinitTouchedManually=false;
 refreshModeUI();
 render();
+
+// --- 設定温度欄：iOSの「連絡先を自動入力」対策 ---
+// この現象は、入力欄の種類ではなく、タイプした数字がiPhoneの連絡先アプリに登録された
+// 電話番号と(部分的にでも)一致するかどうかで発生することがわかっている。つまりページ側の
+// 属性(type/autocomplete等)だけでは原理的に防げない。そのため設定温度欄はネイティブの
+// キーボードを一切使わず、この電卓風の独自パッドだけで入力する方式にしている。
+(function(){
+  const tappInput = $("tapp");
+  const overlay = $("keypadOverlay");
+  const backdrop = $("keypadBackdrop");
+  const display = $("keypadDisplay");
+  const clearBtn = $("keypadClear");
+  const doneBtn = $("keypadDone");
+  const keys = document.querySelectorAll(".keypad-key");
+  let buffer = "";
+
+  function syncDisplay(){
+    display.textContent = buffer === "" ? "0" : buffer;
+  }
+  function commit(){
+    tappInput.value = buffer;
+    tappInput.dispatchEvent(new Event("input", {bubbles:true}));
+  }
+  function openKeypad(){
+    buffer = (tappInput.value || "").toString();
+    syncDisplay();
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden","false");
+  }
+  function closeKeypad(){
+    overlay.classList.remove("open");
+    overlay.setAttribute("aria-hidden","true");
+  }
+
+  tappInput.addEventListener("click", openKeypad);
+  tappInput.addEventListener("keydown", (e)=>{
+    if(e.key==="Enter" || e.key===" "){ e.preventDefault(); openKeypad(); }
+  });
+
+  keys.forEach(key=>{
+    key.addEventListener("click", ()=>{
+      const k = key.dataset.key;
+      if (k === "back"){
+        buffer = buffer.slice(0,-1);
+      } else if (k === "."){
+        if (buffer.indexOf(".") === -1){ buffer += (buffer===""?"0.":"."); }
+      } else if (buffer.length < 6){
+        buffer += k;
+      }
+      syncDisplay();
+      commit();
+    });
+  });
+
+  clearBtn.addEventListener("click", ()=>{
+    buffer = "";
+    syncDisplay();
+    commit();
+  });
+  doneBtn.addEventListener("click", closeKeypad);
+  backdrop.addEventListener("click", closeKeypad);
+  document.addEventListener("keydown", (e)=>{
+    if (e.key === "Escape" && overlay.classList.contains("open")) closeKeypad();
+  });
+})();
 
 /* ================= 説明セクション ================= */
 $("explainBody").innerHTML = `

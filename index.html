@@ -317,9 +317,9 @@ body.safety-mode-page .calc-btn{
       <div class="grid three">
         <div><label for="meat">お肉の種類</label><select id="meat"><option value="鶏肉">鶏肉</option><option value="鴨">鴨</option><option value="豚肉">豚肉</option><option value="牛肉">牛肉</option><option value="イノシシ">イノシシ</option></select></div>
         <div><label for="shape">かたち</label><select id="shape"><option value="diameter">棒状（円柱・直径指定）</option><option value="thickness">方形（厚さ＋幅）</option><option value="sphere">球（直径指定）</option></select><div class="field-note" id="shapeNote"></div></div>
-        <div id="weightField"><label for="weight">重さ（g）</label><input type="number" id="weight" value="250" min="1" step="1"><div class="field-note">パッケージ表示の重量でOK</div></div>
-        <div><label id="dimLabel" for="dim">直径（mm）</label><input type="number" id="dim" value="100" min="1" step="1"></div>
-        <div id="widthField"><label for="width">幅（mm）</label><input type="number" id="width" value="60" min="1" step="1"><div class="field-note">奥行きは重さから自動算出</div></div>
+        <div id="weightField"><label for="weight">重さ（g）</label><input type="text" inputmode="decimal" id="weight" value="250"><div class="field-note">パッケージ表示の重量でOK</div></div>
+        <div><label id="dimLabel" for="dim">直径（mm）</label><input type="text" inputmode="decimal" id="dim" value="100"></div>
+        <div id="widthField"><label for="width">幅（mm）</label><input type="text" inputmode="decimal" id="width" value="60"><div class="field-note">奥行きは重さから自動算出</div></div>
         <div class="measure-tip">定規がなくても大丈夫です。人差し指の先から指またまで約10cm、親指と小指をいっぱいに広げると約20cmが目安です。</div>
       </div>
     </section>
@@ -328,17 +328,17 @@ body.safety-mode-page .calc-btn{
       <div class="section-kicker">STEP 02</div><h2 class="section-title"><span class="ico">🔥</span> 加熱条件</h2>
       <div class="grid three">
         <div><label for="appliance">調理器具</label><select id="appliance"><option value="業務用オーブン">業務用オーブン</option><option value="家庭用電気トースター">家庭用電気トースター</option><option value="魚焼きグリル(IH/ガス)">魚焼きグリル（IH / ガス）</option><option value="家庭用エアフライヤー">家庭用エアフライヤー</option></select></div>
-        <div><label for="tapp">設定温度（℃）</label><input type="number" id="tapp" value="180" min="60" max="260" step="1"><div class="field-note">60〜260℃の範囲</div></div>
+        <div><label for="tapp">設定温度（℃）</label><input type="text" inputmode="decimal" id="tapp" value="180"><div class="field-note">60〜260℃の範囲</div></div>
         <div><label for="initState">調理前のお肉の状態</label><select id="initState"><option value="fridge">冷蔵庫から出したばかり</option><option value="rested">室温にしばらく置いた（30分程度）</option><option value="equilibrated">室温と同じになっている</option></select></div>
-        <div><label for="roomTemp">室温の目安（℃）</label><input type="number" id="roomTemp" value="24" step="1"></div>
-        <div class="row-span2"><label for="tinit">食材の初期温度（℃）</label><input type="number" id="tinit" value="4" step="0.1"><div class="field-note">上の状態から自動入力。実測温度が分かれば直接上書きできます。</div></div>
+        <div><label for="roomTemp">室温の目安（℃）</label><input type="text" inputmode="decimal" id="roomTemp" value="24"></div>
+        <div class="row-span2"><label for="tinit">食材の初期温度（℃）</label><input type="text" inputmode="decimal" id="tinit" value="4"><div class="field-note">上の状態から自動入力。実測温度が分かれば直接上書きできます。</div></div>
         <div class="measure-tip">⚠ この設定温度は、調理器具が<b>すでに予熱を終えて設定温度に達している状態</b>を前提に計算しています。予熱が終わる前に食材を入れると、実際の加熱はこの計算結果より遅くなります。タイマーは予熱完了を確認してから始めてください。</div>
       </div>
     </section>
 
     <section class="section-card" id="step3">
       <div class="section-kicker">STEP 03</div><h2 class="section-title"><span class="ico">🌡</span> 目標</h2>
-      <div id="targetTempField"><label for="ttarget">目標の中心温度（℃）</label><input type="number" id="ttarget" value="55" step="0.1"><div class="field-note">この温度に中心が到達するまでの時間を計算します。安全基準を満たすとは限りません。</div></div>
+      <div id="targetTempField"><label for="ttarget">目標の中心温度（℃）</label><input type="text" inputmode="decimal" id="ttarget" value="55"><div class="field-note">この温度に中心が到達するまでの時間を計算します。安全基準を満たすとは限りません。</div></div>
 
       <div class="safety-target-box" id="safetyTargetField" aria-live="polite">
         <div class="safety-target-head">
@@ -350,7 +350,7 @@ body.safety-mode-page .calc-btn{
         <div class="safety-target-note">⚠ この計算は調理器具が最初から設定温度に達していることが前提です。予熱が不十分なまま調理を始めた場合、実際の安全基準達成はここに表示される時間より遅くなります。予熱完了を確認してからタイマーを始めてください。</div>
       </div>
 
-      <details class="optional-box"><summary>いつもの道具に合わせる（任意）</summary><div class="grid" style="margin-top:12px"><div><label for="measT">経過時間（分）</label><input type="number" id="measT" placeholder="空欄でOK" step="0.1"></div><div><label for="measTemp">そのときの中心温度（℃）</label><input type="number" id="measTemp" placeholder="空欄でOK" step="0.1"></div></div><div class="field-note">以前、同じ調理器具・同じ条件で測った記録があれば入力してください。計算をあなたの調理環境に合わせて補正します。</div></details>
+      <details class="optional-box"><summary>いつもの道具に合わせる（任意）</summary><div class="grid" style="margin-top:12px"><div><label for="measT">経過時間（分）</label><input type="text" inputmode="decimal" id="measT" placeholder="空欄でOK"></div><div><label for="measTemp">そのときの中心温度（℃）</label><input type="text" inputmode="decimal" id="measTemp" placeholder="空欄でOK"></div></div><div class="field-note">以前、同じ調理器具・同じ条件で測った記録があれば入力してください。計算をあなたの調理環境に合わせて補正します。</div></details>
     </section>
 
     <div class="calc-wrap" id="step4">
@@ -1070,16 +1070,24 @@ $("fitCfCheckbox").addEventListener("change", render);
 
 // 数値欄にフォーカスした瞬間、既存の値を全選択しておく。
 // (こうしないと、そのまま数字を打つと末尾に追記されて数字が積み重なってしまうため)
-document.querySelectorAll('input[type="number"]').forEach(inp=>{
+document.querySelectorAll('input[inputmode="decimal"]').forEach(inp=>{
   inp.addEventListener("focus", ()=>{ inp.select(); });
   // タッチ操作でも同様に効くよう、クリック時にも選択しておく
   inp.addEventListener("click", ()=>{ inp.select(); });
-  // iOSの「連絡先を自動入力」候補バーが数値欄で誤って出るのを防ぐ
+  // iOSの「連絡先を自動入力」候補バーはtype="number"の数値欄で特に出やすく、
+  // autocomplete="off"だけでは抑止しきれないことがあるため、type="text"+inputmode="decimal"に変更し、
+  // さらに数字と小数点以外の文字を弾くことで見た目は数値欄のまま動作させる。
   inp.setAttribute("autocomplete", "off");
   inp.setAttribute("autocorrect", "off");
   inp.setAttribute("autocapitalize", "off");
   inp.setAttribute("spellcheck", "false");
   inp.setAttribute("name", "no-autofill-"+(inp.id||Math.random().toString(36).slice(2)));
+  inp.addEventListener("input", ()=>{
+    const cleaned = inp.value.replace(/[^0-9.]/g, "");
+    const firstDot = cleaned.indexOf(".");
+    const safe = firstDot===-1 ? cleaned : cleaned.slice(0,firstDot+1) + cleaned.slice(firstDot+1).replace(/\./g,"");
+    if (safe !== inp.value){ inp.value = safe; render(); }
+  });
 });
 
 refreshShapeUI();

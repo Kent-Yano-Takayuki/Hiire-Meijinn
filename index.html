@@ -359,7 +359,7 @@ body.safety-mode-page .calc-btn{
         <div><label for="tapp">設定温度（℃）</label><input type="text" inputmode="none" id="tapp" value="180" readonly><div class="field-note">タップして数字を入力（60〜260℃の範囲）</div></div>
         <div><label for="initState">調理前のお肉の状態</label><select id="initState"><option value="fridge">冷蔵庫から出したばかり</option><option value="rested">室温にしばらく置いた（30分程度）</option><option value="equilibrated">室温と同じになっている</option></select></div>
         <div><label for="roomTemp">室温の目安（℃）</label><input type="text" inputmode="decimal" id="roomTemp" value="24"></div>
-        <div class="row-span2"><label for="tinit">食材の初期温度（℃）</label><input type="text" inputmode="decimal" id="tinit" value="4"><div class="field-note">上の状態から自動入力。実測温度が分かれば直接上書きできます。</div></div>
+        <div class="row-span2"><label for="tinit">食材の初期温度（℃）</label><input type="text" inputmode="decimal" id="tinit" value="4"><div class="field-note" id="tinitNote">上の状態から自動入力。実測温度が分かれば直接上書きできます。</div></div>
         <div class="preheat-caution"><span class="pc-icon">⚠️</span><span><b>必ずお読みください:</b> この計算は、調理器具が<b>すでに予熱を終えて設定温度に達している状態</b>から食材を入れることを前提にしています。予熱が終わる前に食材を入れると、実際の加熱はこの計算結果より確実に遅くなります。<b>タイマーは、庫内が設定温度に達したことを確認してから</b>始めてください。</span></div>
       </div>
     </section>
@@ -595,18 +595,24 @@ function findFoSwitch(A1, lam1, Bi){
   return (lo+hi)/2;
 }
 
-function buildCase(meat, mode, weightG, dimMm, widthMm, applianceName, Tapp, depthMm){
-  const props = MEATS[meat];
-  const alpha = (props.k/(props.rho*props.cp))*60;
-  const h = hAppliance(applianceName, Tapp);
-  const geo = geometry(mode, props.rho, weightG, dimMm, widthMm, depthMm);
-  const dims = geo.dims.map(d=>{
+// 幾何形状(geometry()の戻り値のdims)から、Bi・λ1・A1・FoSwitchを備えた計算用dims配列を作る。
+// buildCase()(調理器具の対流)と estimateRestedInitTemp()(室内の自然対流)の両方から
+// 同じロジックを再利用するために切り出した。
+function buildDims(props, geoDims, h){
+  return geoDims.map(d=>{
     const Bi = h*d.L/props.k;
     const table = d.kind==="CYL" ? HEISLER_CYL : (d.kind==="SPHERE" ? HEISLER_SPHERE : HEISLER_SLAB);
     const [lam1,A1] = interpHeisler(table, Bi);
     const FoSwitch = findFoSwitch(A1, lam1, Bi);
     return {...d, Bi, lam1, A1, FoSwitch};
   });
+}
+function buildCase(meat, mode, weightG, dimMm, widthMm, applianceName, Tapp, depthMm){
+  const props = MEATS[meat];
+  const alpha = (props.k/(props.rho*props.cp))*60;
+  const h = hAppliance(applianceName, Tapp);
+  const geo = geometry(mode, props.rho, weightG, dimMm, widthMm, depthMm);
+  const dims = buildDims(props, geo.dims, h);
   const PiA1 = dims.reduce((p,d)=>p*d.A1, 1);
   const S = dims.reduce((s,d)=>s + (d.lam1*d.lam1)/(d.L*d.L), 0);
   return { h, alpha, safety:props.safety, dims, PiA1, S, derived: geo.derived };
@@ -698,10 +704,48 @@ function timeToSafety(kase, cf, Tapp, Tinit, tMax=400, dt=0.02){
   }
   return { t: null, Tcenter: null };
 }
+// 「冷蔵庫から出してすぐ」「室温にしばらく置いた(30分程度)」「室温と同じ」の3状態から、
+// 食材の初期温度をおおまかに見積もる簡易版。サイズを考慮しない一律の式で、
+// estimateRestedInitTemp()が使えない場合(サイズ未入力など)のフォールバックとして残している。
 function presetInitTemp(state, roomTemp){
   if (state==="fridge") return 4;
   if (state==="rested") return 4 + 0.3*(roomTemp-4);
   return roomTemp;
+}
+
+// 静止した室内空気中の自然対流の代表的な熱伝達係数(W/m²K)。
+// 調理器具はファンや庫内対流で強制的に熱を運ぶため10〜50程度あるが、室内でただ置いておく場合は
+// 空気の流れがほぼないため、これよりかなり小さい(伝熱工学の教科書的な自然対流の目安レンジは
+// おおむね2〜25 W/m²K)。ここでは肉のような中型の塊を想定した代表値として8を採用しているが、
+// あくまで近似であり、実際の室内環境(風の有無、置き方など)によって変わりうる。
+const ROOM_REST_H = 8;
+
+// 「冷蔵庫から30分室温放置」プリセット用: 食材のサイズ・形状を考慮した初期温度の推定。
+// 従来は肉の大きさに関係なく「室温との差の30%だけ温まる」という一律の経験式だったが、
+// 実際には厚い塊肉ほど中心まで熱が届くのに時間がかかるため、同じ30分でも温まり方は違うはず、
+// という指摘を受けて追加した。調理器具の対流の代わりに室内の自然対流(ROOM_REST_H)を使い、
+// このツールの他の計算(一項近似+短時間厳密解)とまったく同じ仕組みで、
+// 「冷蔵庫内温度(4℃)から室温に向かって restMinutes 分だけ温まったときの中心温度」を計算する。
+// 器具ごとの経験補正係数(cf)は調理器具の個体差を吸収するためのものなので、ここでは使わずcf=1とする。
+function estimateRestedInitTemp(meat, mode, weightG, dimMm, widthMm, depthMm, roomTemp, restMinutes){
+  const props = MEATS[meat];
+  const fridgeTemp = 4;
+  if (!props) return null;
+  if (!isFinite(weightG) || weightG<=0) return null;
+  if (!isFinite(dimMm) || dimMm<=0) return null;
+  if ((mode==="thickness"||mode==="block3d") && (!isFinite(widthMm) || widthMm<=0)) return null;
+  if (mode==="block3d" && (!isFinite(depthMm) || depthMm<=0)) return null;
+  if (!isFinite(roomTemp) || roomTemp<=fridgeTemp) return fridgeTemp;
+  try{
+    const alpha = (props.k/(props.rho*props.cp))*60;
+    const geo = geometry(mode, props.rho, weightG, dimMm, widthMm, depthMm);
+    const dims = buildDims(props, geo.dims, ROOM_REST_H);
+    const kase = { alpha, dims };
+    const t = centerTemp(kase, 1, roomTemp, fridgeTemp, restMinutes);
+    return isFinite(t) ? t : null;
+  } catch(e){
+    return null;
+  }
 }
 
 /* ==================================================================
@@ -906,8 +950,37 @@ function renderDerivedNote(kase){
 }
 
 function updateInitTempFromPreset(){
-  const v = presetInitTemp($("initState").value, parseFloat($("roomTemp").value)||24);
+  const state = $("initState").value;
+  const roomTemp = parseFloat($("roomTemp").value)||24;
+  let v;
+  let sizeAwareUsed = false;
+  if (state==="rested"){
+    const meat = $("meat").value;
+    const shape = $("shape").value;
+    const weight = parseFloat($("weight").value);
+    const dim = parseFloat($("dim").value);
+    const width = parseFloat($("width").value);
+    const depth = parseFloat($("depth").value);
+    const sizeAware = estimateRestedInitTemp(meat, shape, weight, dim, width, depth, roomTemp, 30);
+    if (sizeAware!=null){
+      v = sizeAware;
+      sizeAwareUsed = true;
+    } else {
+      v = presetInitTemp(state, roomTemp);
+    }
+  } else {
+    v = presetInitTemp(state, roomTemp);
+  }
   $("tinit").value = Math.round(v*10)/10;
+
+  const note = $("tinitNote");
+  if (state==="rested"){
+    note.textContent = sizeAwareUsed
+      ? "肉のサイズ・形状から、30分でどこまで温まるかを計算しています(厚いほど上がり方は緩やかになります)。実測温度が分かれば直接上書きできます。"
+      : "厚さ・幅などの入力が完了すると、サイズを考慮した推定に切り替わります(現在は簡易推定)。実測温度が分かれば直接上書きできます。";
+  } else {
+    note.textContent = "上の状態から自動入力。実測温度が分かれば直接上書きできます。";
+  }
 }
 
 function refreshShapeUI(){
@@ -1222,13 +1295,19 @@ function runCalculation(){
 document.querySelectorAll(".tab").forEach(btn=>{
   btn.addEventListener("click", ()=>{ mode = btn.dataset.mode; refreshModeUI(); render(); });
 });
-$("shape").addEventListener("change", ()=>{ refreshShapeUI(); render(); });
+// 「室温にしばらく置いた」状態を選んでいるとき、肉のサイズ・形状に関わる欄が変わったら
+// 初期温度の推定(サイズ考慮)を再計算する。ユーザーが初期温度欄を直接書き換えた後は、
+// その値を優先して上書きしない(tinitTouchedManuallyで判定)。
+function maybeUpdateRestedTinit(){
+  if (!tinitTouchedManually && $("initState").value==="rested"){ updateInitTempFromPreset(); }
+}
+$("shape").addEventListener("change", ()=>{ refreshShapeUI(); maybeUpdateRestedTinit(); render(); });
 $("initState").addEventListener("change", ()=>{ tinitTouchedManually=false; updateInitTempFromPreset(); render(); });
 $("roomTemp").addEventListener("input", ()=>{ if(!tinitTouchedManually){ updateInitTempFromPreset(); } render(); });
 $("tinit").addEventListener("input", ()=>{ tinitTouchedManually=true; render(); });
 ["meat","dim","width","depth","weight","appliance","tapp","ttarget","measT","measTemp"].forEach(id=>{
-  $(id).addEventListener("input", render);
-  $(id).addEventListener("change", render);
+  $(id).addEventListener("input", ()=>{ maybeUpdateRestedTinit(); render(); });
+  $(id).addEventListener("change", ()=>{ maybeUpdateRestedTinit(); render(); });
 });
 $("measuredData").addEventListener("input", render);
 $("fitCfCheckbox").addEventListener("change", render);
@@ -1343,6 +1422,8 @@ $("explainBody").innerHTML = `
 <p>3) 中心温度の推移から、USDA FSIS Appendix A(牛肉・豚肉)およびAnova Culinary低温調理殺菌ガイド(鶏肉・鴨、7-log10 サルモネラ低減基準)を用いて、必要な累積殺菌値との比較を行います。</p>
 <h4>「見えていない寸法」について</h4>
 <p>棒状・方形(厚さ+幅)の各モードでは、入力していない残り1つの寸法(棒状なら長さ、方形なら奥行き)を、重さ÷密度から自動的に逆算しています。この寸法は計算結果の欄に必ず表示されるので、実物とかけ離れた値になっていないか確認してください。特に「幅や直径を変えたのに時間があまり変わらない/逆に速くなった」という場合は、この見えていない寸法が裏で大きく変化していることがほとんどです。球モード・方形(厚さ・幅・奥行き直接指定)モードでは重さを形状の計算には使わず、代わりに「入力した寸法ならではの理論上の重さ」を計算し、実際の重さとの差を表示します。差が大きい場合は完全な球・直方体からずれた形ということなので、その分だけ精度が落ちる可能性があります。塊肉が丸みを帯びていたり不均一だったりして、自動算出される奥行きが実物と大きくズレる場合は、3辺すべてを実測して「厚さ・幅・奥行きを直接指定」モードを使うことをおすすめします。</p>
+<h4>「室温にしばらく置いた(30分程度)」の初期温度について</h4>
+<p>STEP02の「調理前のお肉の状態」で「室温にしばらく置いた」を選ぶと、食材の初期温度を自動で入力します。以前は肉の大きさに関係なく「冷蔵庫温度(4℃)と室温の差の30%だけ温まる」という一律の式でしたが、実際には厚い塊肉ほど中心まで熱が届くのに時間がかかるため、薄いお肉と同じ30分でも温まり方は違うはずです。そこで、STEP01で入力した肉の大きさ・形状をもとに、このツールの他の計算と同じ仕組み(一項近似解+短時間厳密解)を使って、「冷蔵庫から出して30分経過した時点の中心温度」を物理的に見積もるようにしました。調理器具のような送風はないため、対流熱伝達係数は器具よりかなり小さい値(自然対流の代表値として8 W/m²K)を使っています。この値はあくまで一般的な目安であり、実際の室内環境(風の当たり方、置き方、室温など)によって多少前後します。肉の大きさが未入力などでこの計算ができない場合は、従来の一律30%の式にフォールバックします。いずれの場合も、自動入力後にこの欄を直接書き換えれば、その値が優先されます。</p>
 <h4>楕円体・角錐など、対応していない形状について</h4>
 <p>不整形な肉に対応するため、楕円体(卵形)や四角錐・三角錐といった形状の追加も検討しましたが、実際に調べて試作・検証した結果、見送ることにしました。球・棒状・方形の3つは伝熱工学の厳密な解(Heisler線図)がそのまま使えるのに対し、楕円体や角錐にはそのような簡単な厳密解が存在しません。楕円体については食品冷却工学で使われる近似手法(Cleland–Earle の等価伝熱次元数、EHTD法)を実装して検証してみましたが、このツールが扱う条件では、実際より最大で10℃前後「火が通るのが早い」方向に外れる場合があることが分かり、食の安全に関わるツールとしては採用を見送りました。角錐については、そもそも参考にできる確立された近似手法が見つかりませんでした。該当する形が見当たらない食材については、体積や熱の伝わりやすさが近いと思う形状(四角錐は方形、三角錐は棒状や方形など)で代用し、あくまで目安として調理者ご自身の判断で余裕を持って加熱することをおすすめします。</p>
 <h4>実測データとの比較(検証用)について</h4>

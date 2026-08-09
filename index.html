@@ -340,10 +340,11 @@ body.safety-mode-page .calc-btn{
       <div class="section-kicker">STEP 01</div><h2 class="section-title"><span class="ico">🥩</span> 食材</h2>
       <div class="grid three">
         <div><label for="meat">お肉の種類</label><select id="meat"><option value="鶏肉">鶏肉</option><option value="鴨">鴨</option><option value="豚肉">豚肉</option><option value="牛肉">牛肉</option><option value="イノシシ">イノシシ</option></select></div>
-        <div><label for="shape">かたち</label><select id="shape"><option value="diameter">棒状（円柱・直径指定）</option><option value="thickness">方形（厚さ＋幅）</option><option value="sphere">球（直径指定）</option></select><div class="field-note" id="shapeNote"></div></div>
-        <div id="weightField"><label for="weight">重さ（g）</label><input type="text" inputmode="decimal" id="weight" value="250"><div class="field-note">パッケージ表示の重量でOK</div></div>
+        <div><label for="shape">かたち</label><select id="shape"><option value="diameter">棒状（円柱・直径指定）</option><option value="thickness">方形（厚さ＋幅、奥行きは自動算出）</option><option value="block3d">方形（厚さ・幅・奥行きを直接指定）</option><option value="sphere">球（直径指定）</option></select><div class="field-note" id="shapeNote"></div></div>
+        <div id="weightField"><label for="weight">重さ（g）</label><input type="text" inputmode="decimal" id="weight" value="250"><div class="field-note" id="weightNote">パッケージ表示の重量でOK</div></div>
         <div><label id="dimLabel" for="dim">直径（mm）</label><input type="text" inputmode="decimal" id="dim" value="100"></div>
-        <div id="widthField"><label for="width">幅（mm）</label><input type="text" inputmode="decimal" id="width" value="60"><div class="field-note">奥行きは重さから自動算出</div></div>
+        <div id="widthField"><label for="width">幅（mm）</label><input type="text" inputmode="decimal" id="width" value="60"><div class="field-note" id="widthNote">奥行きは重さから自動算出</div></div>
+        <div id="depthField"><label for="depth">奥行き（mm）</label><input type="text" inputmode="decimal" id="depth" value="60"><div class="field-note">実測した奥行きの寸法</div></div>
         <div class="measure-tip">定規がなくても大丈夫です。人差し指の先から指またまで約10cm、親指と小指をいっぱいに広げると約20cmが目安です。</div>
       </div>
     </section>
@@ -504,8 +505,9 @@ function hAppliance(applianceName, Tapp){
   return hconv+hrad;
 }
 // mode: "diameter"(棒状,直径+重さ→長さを自動算出) | "thickness"(方形,厚さ+幅+重さ→奥行きを自動算出)
+//     | "block3d"(方形,厚さ+幅+奥行きをすべて直接指定。重さは入力値との整合性チェック表示にのみ使用)
 //     | "sphere"(球,直径のみ。重さは入力値との整合性チェック表示にのみ使用)
-function geometry(mode, rho, weightG, dimMm, widthMm){
+function geometry(mode, rho, weightG, dimMm, widthMm, depthMm){
   const vol = (weightG/1000)/rho;
   if (mode==="diameter"){
     const r = (dimMm/1000)/2;
@@ -518,7 +520,14 @@ function geometry(mode, rho, weightG, dimMm, widthMm){
     const theoreticalG = volSphere*rho*1000;
     return { dims: [ {kind:"SPHERE", L:r} ],
       derived: { kind:"weightCheck", label:"直径から計算した理論上の重さ", theoreticalG, actualG: weightG } };
-  } else {
+  } else if (mode==="block3d"){
+    const thickM = dimMm/1000, widthM = widthMm/1000, depthM = depthMm/1000;
+    const Lz = thickM/2, Lb = widthM/2, Lc = depthM/2;
+    const volBlock = thickM*widthM*depthM;
+    const theoreticalG = volBlock*rho*1000;
+    return { dims: [ {kind:"SLAB", L:Lz}, {kind:"SLAB", L:Lb}, {kind:"SLAB", L:Lc} ],
+      derived: { kind:"weightCheck", label:"厚さ・幅・奥行きから計算した理論上の重さ", theoreticalG, actualG: weightG } };
+  } else { // thickness
     const thickM = dimMm/1000, widthM = widthMm/1000;
     const Lz = thickM/2, Lb = widthM/2;
     const depth = vol/(thickM*widthM);
@@ -574,11 +583,11 @@ function findFoSwitch(A1, lam1, Bi){
   return (lo+hi)/2;
 }
 
-function buildCase(meat, mode, weightG, dimMm, widthMm, applianceName, Tapp){
+function buildCase(meat, mode, weightG, dimMm, widthMm, applianceName, Tapp, depthMm){
   const props = MEATS[meat];
   const alpha = (props.k/(props.rho*props.cp))*60;
   const h = hAppliance(applianceName, Tapp);
-  const geo = geometry(mode, props.rho, weightG, dimMm, widthMm);
+  const geo = geometry(mode, props.rho, weightG, dimMm, widthMm, depthMm);
   const dims = geo.dims.map(d=>{
     const Bi = h*d.L/props.k;
     const table = d.kind==="CYL" ? HEISLER_CYL : (d.kind==="SPHERE" ? HEISLER_SPHERE : HEISLER_SLAB);
@@ -893,16 +902,23 @@ function refreshShapeUI(){
   const shape = $("shape").value;
   const isDiam = shape==="diameter";
   const isThick = shape==="thickness";
+  const isBlock3d = shape==="block3d";
   const isSphere = shape==="sphere";
-  $("dimLabel").textContent = isThick ? "厚さ (mm)" : "直径 (mm)";
-  $("widthField").style.display = isThick ? "block" : "none";
+  $("dimLabel").textContent = (isThick || isBlock3d) ? "厚さ (mm)" : "直径 (mm)";
+  $("widthField").style.display = (isThick || isBlock3d) ? "block" : "none";
+  $("depthField").style.display = isBlock3d ? "block" : "none";
+  $("widthNote").textContent = isBlock3d ? "実測した幅の寸法" : "奥行きは重さから自動算出";
+  $("weightNote").textContent = (isSphere || isBlock3d)
+    ? "形状の計算には使わず、理論値との比較にのみ使用します"
+    : "パッケージ表示の重量でOK";
   const notes = {
     diameter: "太さが一定の丸太状(ソーセージ・ロール肉など)を想定。長さは重さから自動算出し、計算結果の欄に表示します。",
     thickness: "厚み・幅が一定の板状(ステーキ・むね肉など)を想定。奥行きは重さから自動算出し、計算結果の欄に表示します。",
+    block3d: "厚み・幅・奥行きをすべて実測して入力する方式。不整形な塊肉など、自動算出だと精度が落ちそうな場合向けです。重さは形状の計算には使わず、実測値から計算した理論上の重さとの比較を結果欄に表示します(差が大きい場合、直方体からずれた形の可能性があります)。",
     sphere: "球状(肉団子・ボール状など)を想定。重さは形状の計算には使わず、直径から計算した理論上の重さとの比較を結果欄に表示します(実際の重さと大きくズレる場合、球からずれた形の可能性があります)。",
   };
   $("shapeNote").textContent = notes[shape] || "";
-  $("weightField").style.display = "block"; // 球でも「理論重さとの比較」に使うので常に表示
+  $("weightField").style.display = "block"; // 球・直方体でも「理論重さとの比較」に使うので常に表示
 }
 
 function refreshModeUI(){
@@ -964,6 +980,7 @@ function computeCase(){
   const shape = $("shape").value;
   const dim = parseFloat($("dim").value);
   const width = parseFloat($("width").value);
+  const depth = parseFloat($("depth").value);
   const weight = parseFloat($("weight").value);
   const appliance = $("appliance").value;
   const tapp = parseFloat($("tapp").value);
@@ -971,7 +988,7 @@ function computeCase(){
   const measT = $("measT").value===""? null : parseFloat($("measT").value);
   const measTemp = $("measTemp").value===""? null : parseFloat($("measTemp").value);
 
-  const kase = buildCase(meat, shape, weight, dim, width, appliance, tapp);
+  const kase = buildCase(meat, shape, weight, dim, width, appliance, tapp, depth);
   const measuredPoints = parseMeasuredData($("measuredData").value);
   const wantFit = $("fitCfCheckbox").checked;
 
@@ -1192,7 +1209,7 @@ $("shape").addEventListener("change", ()=>{ refreshShapeUI(); render(); });
 $("initState").addEventListener("change", ()=>{ tinitTouchedManually=false; updateInitTempFromPreset(); render(); });
 $("roomTemp").addEventListener("input", ()=>{ if(!tinitTouchedManually){ updateInitTempFromPreset(); } render(); });
 $("tinit").addEventListener("input", ()=>{ tinitTouchedManually=true; render(); });
-["meat","dim","width","weight","appliance","tapp","ttarget","measT","measTemp"].forEach(id=>{
+["meat","dim","width","depth","weight","appliance","tapp","ttarget","measT","measTemp"].forEach(id=>{
   $(id).addEventListener("input", render);
   $(id).addEventListener("change", render);
 });
@@ -1295,11 +1312,11 @@ render();
 /* ================= 説明セクション ================= */
 $("explainBody").innerHTML = `
 <h4>計算方法の概要</h4>
-<p>1) 肉の形状を「棒状(円柱・直径指定)」「方形(厚さ+幅指定、奥行きは重さ÷密度から自動算出)」「球(直径のみ指定)」のいずれかで近似します。</p>
+<p>1) 肉の形状を「棒状(円柱・直径指定)」「方形(厚さ+幅指定、奥行きは重さ÷密度から自動算出)」「方形(厚さ・幅・奥行きをすべて直接指定)」「球(直径のみ指定)」のいずれかで近似します。</p>
 <p>2) 伝熱工学の標準的な一項近似解(Heisler線図、平板・無限円柱・球)を、Newman則により各方向で組み合わせて中心温度の時間変化を計算します。</p>
 <p>3) 中心温度の推移から、USDA FSIS Appendix A(牛肉・豚肉)およびAnova Culinary低温調理殺菌ガイド(鶏肉・鴨、7-log10 サルモネラ低減基準)を用いて、必要な累積殺菌値との比較を行います。</p>
 <h4>「見えていない寸法」について</h4>
-<p>棒状・方形の各モードでは、入力していない残り1つの寸法(棒状なら長さ、方形なら奥行き)を、重さ÷密度から自動的に逆算しています。この寸法は計算結果の欄に必ず表示されるので、実物とかけ離れた値になっていないか確認してください。特に「幅や直径を変えたのに時間があまり変わらない/逆に速くなった」という場合は、この見えていない寸法が裏で大きく変化していることがほとんどです。球モードでは重さを形状の計算には使わず、代わりに「入力した直径ならではの理論上の重さ」を計算し、実際の重さとの差を表示します。差が大きい場合は完全な球からずれた形ということなので、その分だけ精度が落ちる可能性があります。</p>
+<p>棒状・方形(厚さ+幅)の各モードでは、入力していない残り1つの寸法(棒状なら長さ、方形なら奥行き)を、重さ÷密度から自動的に逆算しています。この寸法は計算結果の欄に必ず表示されるので、実物とかけ離れた値になっていないか確認してください。特に「幅や直径を変えたのに時間があまり変わらない/逆に速くなった」という場合は、この見えていない寸法が裏で大きく変化していることがほとんどです。球モード・方形(厚さ・幅・奥行き直接指定)モードでは重さを形状の計算には使わず、代わりに「入力した寸法ならではの理論上の重さ」を計算し、実際の重さとの差を表示します。差が大きい場合は完全な球・直方体からずれた形ということなので、その分だけ精度が落ちる可能性があります。塊肉が丸みを帯びていたり不均一だったりして、自動算出される奥行きが実物と大きくズレる場合は、3辺すべてを実測して「厚さ・幅・奥行きを直接指定」モードを使うことをおすすめします。</p>
 <h4>楕円体・角錐など、対応していない形状について</h4>
 <p>不整形な肉に対応するため、楕円体(卵形)や四角錐・三角錐といった形状の追加も検討しましたが、実際に調べて試作・検証した結果、見送ることにしました。球・棒状・方形の3つは伝熱工学の厳密な解(Heisler線図)がそのまま使えるのに対し、楕円体や角錐にはそのような簡単な厳密解が存在しません。楕円体については食品冷却工学で使われる近似手法(Cleland–Earle の等価伝熱次元数、EHTD法)を実装して検証してみましたが、このツールが扱う条件では、実際より最大で10℃前後「火が通るのが早い」方向に外れる場合があることが分かり、食の安全に関わるツールとしては採用を見送りました。角錐については、そもそも参考にできる確立された近似手法が見つかりませんでした。該当する形が見当たらない食材については、体積や熱の伝わりやすさが近いと思う形状(四角錐は方形、三角錐は棒状や方形など)で代用し、あくまで目安として調理者ご自身の判断で余裕を持って加熱することをおすすめします。</p>
 <h4>実測データとの比較(検証用)について</h4>

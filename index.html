@@ -73,18 +73,21 @@ select:focus,input:focus,textarea:focus{outline:none;border-color:var(--red);box
 .keypad-backdrop{position:absolute;inset:0;background:rgba(36,33,31,.45)}
 .keypad-panel{position:absolute;left:0;right:0;bottom:0;background:var(--paper-2);border-radius:22px 22px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -12px 34px rgba(52,38,28,.22);max-width:480px;margin:0 auto;animation:keypadSlideUp .22s ease-out}
 @keyframes keypadSlideUp{from{transform:translateY(24px);opacity:.4}to{transform:translateY(0);opacity:1}}
-.keypad-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.keypad-header{margin-bottom:2px}
 .keypad-title{font-weight:800;font-size:.92rem;color:var(--ink)}
-.keypad-clear{border:1.5px solid var(--red);background:var(--red-soft);color:var(--red-deep);font-weight:800;font-size:.85rem;padding:9px 16px;border-radius:11px;cursor:pointer}
-.keypad-clear:active{background:#ecd2cc}
 .keypad-display{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-size:2.6rem;font-weight:700;color:var(--red-deep);text-align:right;padding:8px 6px 0;font-variant-numeric:tabular-nums;min-height:52px}
 .keypad-display .keypad-unit{font-size:1.1rem;color:var(--muted);margin-left:6px;font-family:"Noto Sans JP",sans-serif;font-weight:700}
 .keypad-range-note{text-align:right;font-size:.72rem;color:var(--muted);margin-bottom:12px}
-.keypad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
-.keypad-key{border:1px solid #e4dbcf;background:#fff;border-radius:14px;padding:16px 0;font-size:1.35rem;font-weight:700;color:var(--ink);cursor:pointer;box-shadow:0 2px 6px rgba(52,38,28,.05)}
+/* 電卓と同じく、全キーを同じサイズ・同じ形の正方形グリッドで統一する。
+   クリア／完了も「特別扱いの別パーツ」にせず、他の数字キーと同格の1マスとして並べる。 */
+.keypad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:0}
+.keypad-key{border:1px solid #e4dbcf;background:#fff;border-radius:14px;padding:0;aspect-ratio:1.3/1;font-size:1.35rem;font-weight:700;color:var(--ink);cursor:pointer;box-shadow:0 2px 6px rgba(52,38,28,.05);display:flex;align-items:center;justify-content:center}
 .keypad-key:active{background:#f3ece2}
 .keypad-key-func{color:var(--red);font-size:1.15rem}
-.keypad-done-btn{width:100%;border:0;border-radius:12px;background:linear-gradient(180deg,#a7382e,#8c281f);color:#fff;padding:15px;font-weight:800;font-size:1rem;letter-spacing:.06em;cursor:pointer;box-shadow:0 9px 20px rgba(133,40,32,.16)}
+.keypad-key-clear{color:var(--red-deep);border-color:var(--red);background:var(--red-soft);font-size:1.05rem}
+.keypad-key-clear:active{background:#ecd2cc}
+.keypad-key-done{border:0;background:linear-gradient(180deg,#a7382e,#8c281f);color:#fff;font-size:1.05rem;letter-spacing:.03em;box-shadow:0 6px 14px rgba(133,40,32,.18)}
+.keypad-key-spacer{visibility:hidden;box-shadow:none;border:none;background:none;pointer-events:none}
 .result-grid{display:grid;grid-template-columns:1fr;gap:14px;align-items:stretch}.result-grid>.card{margin-bottom:0}
 .chart-embed{margin:16px 0 4px;padding-top:14px;border-top:1px dashed var(--line)}
 .chart-embed-title{font-size:.82rem;font-weight:800;color:var(--ink);margin-bottom:8px}
@@ -414,11 +417,13 @@ body.safety-mode-page .calc-btn{
   <div class="keypad-panel" role="dialog" aria-modal="true" aria-label="設定温度を入力">
     <div class="keypad-header">
       <span class="keypad-title">🔥 設定温度を入力</span>
-      <button type="button" class="keypad-clear" id="keypadClear">クリア</button>
     </div>
     <div class="keypad-display"><span id="keypadDisplay">180</span><span class="keypad-unit">℃</span></div>
     <div class="keypad-range-note">60〜260℃の範囲</div>
     <div class="keypad-grid">
+      <button type="button" class="keypad-key keypad-key-clear" id="keypadClear">クリア</button>
+      <button type="button" class="keypad-key keypad-key-func" data-key="back">⌫</button>
+      <span class="keypad-key keypad-key-spacer" aria-hidden="true"></span>
       <button type="button" class="keypad-key" data-key="7">7</button>
       <button type="button" class="keypad-key" data-key="8">8</button>
       <button type="button" class="keypad-key" data-key="9">9</button>
@@ -430,9 +435,8 @@ body.safety-mode-page .calc-btn{
       <button type="button" class="keypad-key" data-key="3">3</button>
       <button type="button" class="keypad-key keypad-key-func" data-key=".">.</button>
       <button type="button" class="keypad-key" data-key="0">0</button>
-      <button type="button" class="keypad-key keypad-key-func" data-key="back">⌫</button>
+      <button type="button" class="keypad-key keypad-key-done" id="keypadDone">✓完了</button>
     </div>
-    <button type="button" class="keypad-done-btn" id="keypadDone">✓ 完了</button>
   </div>
 </div>
 
@@ -1352,7 +1356,7 @@ render();
   const display = $("keypadDisplay");
   const clearBtn = $("keypadClear");
   const doneBtn = $("keypadDone");
-  const keys = document.querySelectorAll(".keypad-key");
+  const keys = document.querySelectorAll(".keypad-grid button[data-key]");
   let buffer = "";
   // 開いた直後、まだ何も打っていない「選択済み」状態かどうか。他の数値欄がフォーカス時に
   // 全選択されて、そのまま数字を打つと上書きされるのと同じ挙動をこのパッドでも再現するため。

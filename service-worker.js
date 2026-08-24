@@ -4,7 +4,7 @@
 // ★ツールの中身(index.html)を更新したときは、必ずCACHE_NAMEの数字を上げてください。
 //   (例: v1 -> v2)。これをしないと、スマホがキャッシュを使い続けて、
 //   古いバージョンのまま更新に気づかない場合があります。
-const CACHE_NAME = "hi-ire-meijin-v31";
+const CACHE_NAME = "hi-ire-meijin-v32";
 
 const APP_SHELL = [
   "./",
